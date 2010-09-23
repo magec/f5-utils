@@ -5,13 +5,14 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |gem|
     gem.name = "f5-utils"
-    gem.summary = %Q{TODO: one-line summary of your gem}
-    gem.description = %Q{TODO: longer description of your gem}
+    gem.summary = %Q{command line utils for F5 BigIP}
+    gem.description = %Q{This is just a simple set of command lines utils for f5 bigip load balancer}
     gem.email = "jfernandezperez@gmail.com"
     gem.homepage = "http://github.com/magec/f5-utils"
     gem.authors = ["Jose Fernandez"]
     gem.add_development_dependency "thoughtbot-shoulda", ">= 0"
-    # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
+    gem.add_dependency "icontrol"
+    gem.files = FileList['lib/*.rb','bin/*']
   end
   Jeweler::GemcutterTasks.new
 rescue LoadError

@@ -1,0 +1,112 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require 'logger'
+require 'ostruct'
+require File.dirname(__FILE__) + '/../lib/f5-utils'
+require "icontrol"
+Savon::Request.log = false
+
+# Command Parsing
+
+ACTIONS =  {
+  "pool" => { 
+
+    "rename" => [
+                 ["-s",:REQUIRED,"--src_name","=SOURCE","the source pool"],
+                 ["-t",:REQUIRED,"--target_name","=TARGET","the destination pool"]
+                ],
+    "list" => []
+    
+  },
+  "profile_http_class" => { 
+    "list" => [],
+    "rename" => [
+                 ["-s",:REQUIRED,"--src_name","=SOURCE","the source profile"],
+                 ["-t",:REQUIRED,"--target_name","=TARGET","the destination profile"]
+                ]
+  },
+  "virtual_server" => { 
+    "rename" => [
+                 ["-s",:REQUIRED,"--src_name","=SOURCE","the source virtual server"],
+                 ["-t",:REQUIRED,"--target_name","=TARGET","the destination virtual server"]
+                ],
+    "copy" => [
+               ["-s",:REQUIRED,"--src_name","=SOURCE","the source virtual server"],
+               ["-t",:REQUIRED,"--target_name","=TARGET","the destination virtual server"],
+               ["-a",:REQUIRED,"--address","=ADDRESS","the destination ip address"],
+               ["-p",:REQUIRED,"--port","=PORT","the destination port"]
+              ]
+  }
+}
+
+options = OpenStruct.new
+options.verbosity = 0
+OptionParser.new do |opts|
+  opts.banner = "Usage: example.rb [options]"
+  
+  opts.on("-v","--verbose", "Increase verbosity level") do |v|
+    options.verbosity += 1
+  end
+
+  opts.on("-c","--config=CONFIG_FILE", "The config file to use (yaml with configs)") { |c| options.config = c }  
+  opts.on("-u","--uri=URI", "Uri to connect to (overrides config file)") { |u| options.uri = u }
+  opts.on("-U","--user=USER", "user name (overrides config file)") { |u| options.user = u }
+  opts.on("-p","--password=PASSWORD", "password (overrides config file)") { |p| options.password = p }  
+  opts.on("-o","--object=OBJECT",:REQUIRED,ACTIONS.keys,"An object to work on "," [#{ACTIONS.keys.join(',')}]") do |o|
+    options.object = o
+    opts.separator("")
+    opts.separator("  #{o} options:")
+    opts.on("-aACTION",:REQUIRED,"--action","=ACTION",ACTIONS[o].keys,"The action that is to be performed"," [#{ACTIONS["pool"].keys.join(',')}]") do |object_action|
+      options.action = object_action
+      opts.separator("")
+      opts.separator("    #{object_action} options:")
+
+      ACTIONS[o][object_action].each do |action|
+        opts.on(*action) do |p|
+          member = action[2][2..-1]
+          options.new_ostruct_member(member)
+          options.send(member+"=",p)
+        end
+      end
+    end
+  end
+end.parse!
+
+if options.config
+  begin
+    if File.stat(options.config) && file_contents = File.open(options.config).read
+      IControl.config = YAML.load(file_contents)
+    end
+  rescue
+    puts "There was an error when opening/parsing config file"
+    puts $!
+  end
+end
+
+
+IControl.config[:user] = options.user if options.user
+IControl.config[:password] = options.password if options.password 
+IControl.config[:base_url] = options.uri if options.uri 
+
+( puts "Error, credentials set" ; exit false )  unless IControl.config[:user] && IControl.config[:password] && IControl.config[:base_url]
+
+F5Utils.logger.level = 4 - options.verbosity
+
+case options.object
+when "pool" then 
+  case options.action
+  when "rename" then F5Utils::Pool.rename(options.src_name,options.target_name)
+  when "list" then F5Utils::Pool.list
+  end
+when "profile_http_class" then
+  case options.action
+  when "rename" then F5Utils::ProfileHttpClass.rename(options.src_name,options.target_name)
+  when "list" then F5Utils::ProfileHttpClass.list
+  end
+when "virtual_server" then
+  case options.action
+  when "rename" then F5Utils::VirtualServer.rename(options.src_name,options.target_name)
+  when "copy" then F5Utils::VirtualServer.copy(options.src_name,options.target_name,:address => options.address,:port => options.port)
+  end
+end
+
